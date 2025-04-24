@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import mermaid from 'mermaid';
 import { Template } from '@/types/template';
+import AIChatWindow from '@/components/AIChatWindow';
 
 interface SavedDiagram {
   _id: string;
@@ -38,16 +39,17 @@ export default function DashboardPage() {
   const [currentDiagramName, setCurrentDiagramName] = useState('Untitled Diagram');
   const [isEditing, setIsEditing] = useState(false);
   const [isDark, setIsDark] = useState(false);
-  const [mermaidTheme, setMermaidTheme] = useState<MermaidTheme>('base');
+  const [mermaidTheme, setMermaidTheme] = useState<MermaidTheme>('default');
   const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
+  const [syntaxError, setSyntaxError] = useState<string | null>(null);
   
   // Update dark mode detection and mermaid theme accordingly
   useEffect(() => {
     const isDarkMode = theme === 'dark' || 
       (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     setIsDark(isDarkMode);
-    // Initialize with custom ZOBA theme instead of default/dark
-    setMermaidTheme('base');
+    // Initialize with default theme
+    setMermaidTheme(isDarkMode ? 'dark' : 'default');
   }, [theme]);
 
   // Add custom Mermaid theme initialization
@@ -55,20 +57,7 @@ export default function DashboardPage() {
     // Initialize mermaid with ZOBA theme
     mermaid.initialize({
       startOnLoad: true,
-      theme: 'base',
-      themeVariables: {
-        primaryColor: '#273469', // delft-blue
-        primaryTextColor: isDark ? '#E4D9FF' : '#273469', // periwinkle in dark, delft-blue in light
-        primaryBorderColor: '#273469', // delft-blue
-        lineColor: '#273469', // delft-blue
-        secondaryColor: '#E4D9FF', // periwinkle
-        tertiaryColor: isDark ? '#1B264F' : '#F5F5F5', // space-cadet in dark, light gray in light
-        textColor: isDark ? '#E4D9FF' : '#273469', // periwinkle in dark, delft-blue in light
-        mainBkg: isDark ? '#1B264F' : '#F5F5F5', // space-cadet in dark, light gray in light
-        nodeBorder: '#273469', // delft-blue
-        clusterBkg: '#E4D9FF', // periwinkle
-        titleColor: isDark ? '#E4D9FF' : '#273469', // periwinkle in dark, delft-blue in light
-      }
+      theme: isDark ? 'dark' : 'default',
     });
   }, [isDark]);
 
@@ -192,6 +181,10 @@ export default function DashboardPage() {
     setCurrentDiagramName(`New ${template.name}`);
   };
 
+  const handleDiagramError = (error: string | null) => {
+    setSyntaxError(error);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-ghost-white dark:bg-space-cadet">
       {/* Navbar */}
@@ -245,7 +238,6 @@ export default function DashboardPage() {
                   <div className={`absolute left-0 right-0 mt-1 ${isStyleMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'} bg-white dark:bg-delft-blue border border-periwinkle/30 dark:border-periwinkle/10 rounded-lg shadow-lg z-50 transition-all duration-200`}>
                     <div className="py-2">
                       {[
-                        { name: 'base', colors: ['#F5F5F5', '#E4D9FF', '#273469', '#1B264F', '#576490'] },
                         { name: 'default', colors: ['#ffffff', '#f0f0f0', '#333333', '#666666'] },
                         { name: 'forest', colors: ['#1b4332', '#2d6a4f', '#40916c', '#74c69d'] },
                         { name: 'dark', colors: ['#1a1a1a', '#2d2d2d', '#404040', '#666666'] },
@@ -435,13 +427,22 @@ export default function DashboardPage() {
         <div className={`flex-1 transition-all duration-300 flex h-full`}>
           {/* Editor Panel */}
           <div className="w-1/2 flex flex-col h-full bg-white dark:bg-delft-blue shadow-lg">
-            <div className="flex-1 overflow-hidden relative">
-              <CodeEditor
-                value={code}
-                onChange={handleCodeChange}
-                height="100%"
-                className="absolute inset-0 w-full shadow-inner"
-              />
+            <div className="flex-1 overflow-hidden relative flex flex-col">
+              <div className="flex-1 relative">
+                <CodeEditor
+                  value={code}
+                  onChange={handleCodeChange}
+                  height="100%"
+                  className="absolute inset-0 w-full shadow-inner"
+                />
+              </div>
+              <div className="flex-shrink-0">
+                <AIChatWindow 
+                  onCodeGenerated={handleCodeChange} 
+                  currentCode={code}
+                  syntaxError={syntaxError}
+                />
+              </div>
             </div>
           </div>
 
@@ -452,7 +453,8 @@ export default function DashboardPage() {
                 <MermaidDiagram 
                   code={code} 
                   className="w-full h-full" 
-                  mermaidTheme={mermaidTheme} 
+                  mermaidTheme={mermaidTheme}
+                  onError={handleDiagramError}
                 />
               </div>
             </div>

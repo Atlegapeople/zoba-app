@@ -1,0 +1,23 @@
+C4Context
+title System Context diagram for Banking System
+
+Person(customer, "Customer", "A customer of ABC Bank")
+Person(employee, "Bank Employee", "An employee of ABC Bank")
+Person_Ext(auditor, "External Auditor", "Audits the bank's operations")
+
+Enterprise_Boundary(b1, "ABC Bank") {
+    System(banking_system, "Core Banking System", "Handles all core banking operations")
+}
+
+System_Ext(email_system, "Email System", "External email service provider")
+System_Ext(crm_system, "CRM System", "Manages customer relationships")
+System_Ext(payment_gateway, "Payment Gateway", "Processes external payments")
+
+Rel(customer, banking_system, "Views account\ndetails and transactions")
+Rel(employee, banking_system, "Manages customer\naccounts and transactions")
+Rel(auditor, banking_system, "Audits transactions\nand operations")
+Rel(banking_system, email_system, "Sends notifications\nand alerts")
+Rel(banking_system, crm_system, "Updates customer\ninformation")
+Rel(banking_system, payment_gateway, "Processes\npayments")
+
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2") 

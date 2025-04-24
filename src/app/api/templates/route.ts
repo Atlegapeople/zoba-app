@@ -169,29 +169,38 @@ export async function POST() {
           isExperimental: true
         },
         {
-          name: 'C4 Diagram',
-          type: 'C4Context',
+          name: 'C4 Context Diagram',
+          type: 'C4 Context',
+          isExperimental: true,
           code: `C4Context
-    title System Context diagram for ZOBA
-    Enterprise_Boundary(b0, "ZOBA") {
-      Person(user, "User", "A user creating diagrams")
-      System(zoba, "ZOBA App", "Allows users to create and manage diagrams")
-      
-      Rel(user, zoba, "Uses")
-      
-      SystemDb_Ext(db, "Database", "Stores diagrams and user data")
-      System_Ext(auth, "Auth Service", "Handles authentication")
-      
-      Rel(zoba, db, "Reads/Writes")
-      Rel(zoba, auth, "Authenticates")
-    }`,
-          isDefault: false,
-          isExperimental: true
+title System Context diagram for Banking System
+
+Person(customer, "Customer", "A customer of ABC Bank")
+Person(employee, "Bank Employee", "An employee of ABC Bank")
+Person_Ext(auditor, "External Auditor", "Audits the bank's operations")
+
+Enterprise_Boundary(b1, "ABC Bank") {
+    System(banking_system, "Core Banking System", "Handles all core banking operations")
+}
+
+System_Ext(email_system, "Email System", "External email service provider")
+System_Ext(crm_system, "CRM System", "Manages customer relationships")
+System_Ext(payment_gateway, "Payment Gateway", "Processes external payments")
+
+Rel(customer, banking_system, "Views account\ndetails and transactions")
+Rel(employee, banking_system, "Manages customer\naccounts and transactions")
+Rel(auditor, banking_system, "Audits transactions\nand operations")
+Rel(banking_system, email_system, "Sends notifications\nand alerts")
+Rel(banking_system, crm_system, "Updates customer\ninformation")
+Rel(banking_system, payment_gateway, "Processes\npayments")
+
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")`,
+          isDefault: false
         },
         {
-          name: 'Block Diagram',
+          name: 'Block Diagram (Beta)',
           type: 'flowchart',
-          code: `flowchart TD
+          code: `flowchart LR
     subgraph Frontend
     UI[Web Interface]
     end
@@ -213,7 +222,6 @@ export async function POST() {
     API --> Queue
     API --> DB
     Queue --> DB`,
-          isDefault: false,
           isExperimental: true
         },
         {
@@ -232,15 +240,14 @@ export async function POST() {
           name: 'Sankey Diagram',
           type: 'sankey-beta',
           code: `sankey-beta
-    Traffic Sources
-    Website Traffic, Direct, 20
-    Website Traffic, Search, 40
-    Website Traffic, Social, 30
-    Website Traffic, Referral, 10
-    Direct, Sign Up, 5
-    Search, Sign Up, 15
-    Social, Sign Up, 10
-    Referral, Sign Up, 3`,
+Website Traffic,Direct,20
+Website Traffic,Search,40
+Website Traffic,Social,30
+Website Traffic,Referral,10
+Direct,Sign Up,5
+Search,Sign Up,15
+Social,Sign Up,10
+Referral,Sign Up,3`,
           isDefault: false,
           isExperimental: true
         }
@@ -419,29 +426,38 @@ export async function DELETE() {
         isExperimental: true
       },
       {
-        name: 'C4 Diagram',
-        type: 'C4Context',
+        name: 'C4 Context Diagram',
+        type: 'C4 Context',
+        isExperimental: true,
         code: `C4Context
-    title System Context diagram for ZOBA
-    Enterprise_Boundary(b0, "ZOBA") {
-      Person(user, "User", "A user creating diagrams")
-      System(zoba, "ZOBA App", "Allows users to create and manage diagrams")
-      
-      Rel(user, zoba, "Uses")
-      
-      SystemDb_Ext(db, "Database", "Stores diagrams and user data")
-      System_Ext(auth, "Auth Service", "Handles authentication")
-      
-      Rel(zoba, db, "Reads/Writes")
-      Rel(zoba, auth, "Authenticates")
-    }`,
-        isDefault: false,
-        isExperimental: true
+title System Context diagram for Banking System
+
+Person(customer, "Customer", "A customer of ABC Bank")
+Person(employee, "Bank Employee", "An employee of ABC Bank")
+Person_Ext(auditor, "External Auditor", "Audits the bank's operations")
+
+Enterprise_Boundary(b1, "ABC Bank") {
+    System(banking_system, "Core Banking System", "Handles all core banking operations")
+}
+
+System_Ext(email_system, "Email System", "External email service provider")
+System_Ext(crm_system, "CRM System", "Manages customer relationships")
+System_Ext(payment_gateway, "Payment Gateway", "Processes external payments")
+
+Rel(customer, banking_system, "Views account\ndetails and transactions")
+Rel(employee, banking_system, "Manages customer\naccounts and transactions")
+Rel(auditor, banking_system, "Audits transactions\nand operations")
+Rel(banking_system, email_system, "Sends notifications\nand alerts")
+Rel(banking_system, crm_system, "Updates customer\ninformation")
+Rel(banking_system, payment_gateway, "Processes\npayments")
+
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")`,
+        isDefault: false
       },
       {
-        name: 'Block Diagram',
+        name: 'Block Diagram (Beta)',
         type: 'flowchart',
-        code: `flowchart TD
+        code: `flowchart LR
     subgraph Frontend
     UI[Web Interface]
     end
@@ -463,7 +479,6 @@ export async function DELETE() {
     API --> Queue
     API --> DB
     Queue --> DB`,
-        isDefault: false,
         isExperimental: true
       },
       {
@@ -482,15 +497,14 @@ export async function DELETE() {
         name: 'Sankey Diagram',
         type: 'sankey-beta',
         code: `sankey-beta
-    Traffic Sources
-    Website Traffic, Direct, 20
-    Website Traffic, Search, 40
-    Website Traffic, Social, 30
-    Website Traffic, Referral, 10
-    Direct, Sign Up, 5
-    Search, Sign Up, 15
-    Social, Sign Up, 10
-    Referral, Sign Up, 3`,
+Website Traffic,Direct,20
+Website Traffic,Search,40
+Website Traffic,Social,30
+Website Traffic,Referral,10
+Direct,Sign Up,5
+Search,Sign Up,15
+Social,Sign Up,10
+Referral,Sign Up,3`,
         isDefault: false,
         isExperimental: true
       }

@@ -1,286 +1,233 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import { useTheme } from '@/components/theme-provider';
+import { Loader2 } from 'lucide-react';
+
+export type MermaidTheme = 'default' | 'forest' | 'dark' | 'neutral' | 'base';
 
 interface MermaidDiagramProps {
-  chart: string;
+  code: string;
   className?: string;
+  mermaidTheme?: MermaidTheme;
 }
 
-export default function MermaidDiagram({ chart, className = "" }: MermaidDiagramProps) {
+const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className = "", mermaidTheme }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgContainerRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [svgContent, setSvgContent] = useState<string>('');
+  
+  // State for pan/zoom
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Process and enhance SVG after rendering
-  const processAndEnhanceSVG = () => {
-    if (!containerRef.current) return;
-    
-    const svgElement = containerRef.current.querySelector('svg') as SVGSVGElement;
-    if (!svgElement) return;
-    
-    // Make the SVG responsive
-    svgElement.setAttribute('width', '100%');
-    svgElement.setAttribute('height', '100%');
-    svgElement.style.maxWidth = '100%';
-    svgElement.style.maxHeight = '100%';
-    svgElement.style.overflow = 'visible';
-    
-    // Get the root group element
-    const g = svgElement.querySelector('g');
-    if (!g) return;
-    
-    // Get content and container dimensions
-    const contentBBox = g.getBBox ? g.getBBox() : { width: 800, height: 600 };
-    const containerWidth = containerRef.current.clientWidth - 32; // Adjust for padding
-    const containerHeight = containerRef.current.clientHeight - 32; // Adjust for padding
-    
-    // Calculate appropriate scaling
-    let scaleX = (containerWidth * 0.95) / contentBBox.width;
-    let scaleY = (containerHeight * 0.92) / contentBBox.height;
-    let scale = Math.min(scaleX, scaleY);
-    
-    // Ensure diagrams are appropriately sized
-    if (contentBBox.width < 600) {
-      scale = Math.max(scale, 1.1); // Scale up small diagrams
-    } else {
-      scale = Math.max(scale, 0.8); // Ensure minimum scale for large diagrams
+  const renderDiagram = useCallback(async () => {
+    if (!code || typeof code !== 'string' || code.trim() === '') {
+      setError('No diagram code available');
+      setIsLoading(false);
+      return;
     }
-    
-    // Apply transform
-    g.style.transform = `scale(${scale})`;
-    g.style.transformOrigin = 'center';
-    
-    // Style rectangles
-    const rects = svgElement.querySelectorAll('rect:not(.label-container)');
-    rects.forEach((rect) => {
-      if (!rect.getAttribute('fill') || rect.getAttribute('fill') === 'none') {
-        rect.setAttribute('fill', theme === 'dark' ? '#4c566a' : '#e6f0ff');
-        rect.setAttribute('fill-opacity', '0.8');
-        rect.setAttribute('rx', '4'); // Rounded corners
-        rect.setAttribute('ry', '4');
-      }
-    });
-    
-    // Style text elements
-    const textElements = svgElement.querySelectorAll('text');
-    textElements.forEach((text) => {
-      text.style.fontFamily = 'Segoe UI, system-ui, -apple-system, sans-serif';
-      text.style.fontSize = '17px';
-      text.style.fontWeight = '500';
-    });
-    
-    // Style paths/lines
-    const pathElements = svgElement.querySelectorAll('path');
-    pathElements.forEach((path) => {
-      if (path.getAttribute('stroke-width') === '0') {
-        path.setAttribute('stroke-width', '1.5');
-      }
-      path.setAttribute('stroke-linejoin', 'round');
-      path.setAttribute('stroke-linecap', 'round');
-    });
-    
-    // Adjust node sizes to fit text
-    adjustNodeSizesToFitText(svgElement);
-  };
-  
-  // Function to adjust node sizes to fit text
-  const adjustNodeSizesToFitText = (svgElement: SVGSVGElement) => {
-    const nodes = svgElement.querySelectorAll('.node');
-    const nodeCount = nodes.length;
-    const isComplexDiagram = nodeCount > 15;
-    
-    // Define size constraints
-    const minNodeWidth = isComplexDiagram ? 120 : 150;
-    const maxNodeWidth = isComplexDiagram ? 200 : 250;
-    const minNodeHeight = isComplexDiagram ? 40 : 50;
-    const maxNodeHeight = isComplexDiagram ? 70 : 90;
-    
-    nodes.forEach((node) => {
-      const rect = node.querySelector('rect');
-      const texts = node.querySelectorAll('text');
-      
-      if (rect) {
-        let width = parseInt(rect.getAttribute('width') || '0');
-        let height = parseInt(rect.getAttribute('height') || '0');
-        let needsResize = false;
-        let requiredWidth = minNodeWidth;
-        let requiredHeight = minNodeHeight;
-        
-        texts.forEach((text) => {
-          // Roughly calculate the text width
-          const textContent = text.textContent || '';
-          const estimatedWidth = textContent.length * 9; // Rough estimate based on font size
-          
-          if (estimatedWidth > requiredWidth) {
-            requiredWidth = Math.min(estimatedWidth + 20, maxNodeWidth); // Add padding
-            needsResize = true;
-          }
-          
-          // If multiple lines of text, increase height
-          if (texts.length > 1) {
-            requiredHeight = Math.min(texts.length * 25 + 10, maxNodeHeight);
-            needsResize = true;
-          }
-        });
-        
-        // Apply new dimensions if needed
-        if (needsResize || width < minNodeWidth || height < minNodeHeight) {
-          rect.setAttribute('width', String(Math.max(width, requiredWidth)));
-          rect.setAttribute('height', String(Math.max(height, requiredHeight)));
-          
-          // Center the text vertically if we resized and only have one text element
-          texts.forEach((text) => {
-            if (texts.length === 1) {
-              const newHeight = Math.max(height, requiredHeight);
-              text.setAttribute('y', String(newHeight / 2 + 5)); // +5 for slight offset
-            }
-          });
-        }
-      }
-    });
-  };
-  
-  // Render the Mermaid diagram
-  const renderDiagram = async () => {
-    if (!containerRef.current) return;
-    
+
+    setIsLoading(true);
+    setError(null);
+
     try {
-      // Clear previous content
-      containerRef.current.innerHTML = '';
+      // Generate a unique ID for this render
+      const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+      const { svg } = await mermaid.render(id, code);
       
-      // Initialize mermaid with optimized settings
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: theme === 'dark' ? 'dark' : 'default',
-        securityLevel: 'loose',
-        fontFamily: 'Segoe UI, system-ui, -apple-system, sans-serif',
-        fontSize: 18, // Larger font size
-        flowchart: {
-          useMaxWidth: false,
-          htmlLabels: true,
-          curve: 'basis',
-          nodeSpacing: 30,
-          rankSpacing: 60,
-          padding: 10,
-          diagramPadding: 10
-        },
-        themeVariables: {
-          fontFamily: 'Segoe UI, system-ui, -apple-system, sans-serif',
-          fontSize: '18px',
-          primaryColor: theme === 'dark' ? '#88c0d0' : '#5c7cfa',
-          primaryTextColor: theme === 'dark' ? '#eceff4' : '#343a40',
-          secondaryColor: theme === 'dark' ? '#434c5e' : '#e9ecef',
-          lineColor: theme === 'dark' ? '#88c0d0' : '#5c7cfa'
-        }
-      });
-      
-      // Create a unique ID for this diagram
-      const id = `mermaid-${Math.random().toString(36).substring(2, 11)}`;
-      
-      // Use mermaid API to render
-      const { svg } = await mermaid.render(id, chart);
-      
-      // Insert the SVG into the container
-      containerRef.current.innerHTML = svg;
-      
-      // Process and enhance the SVG after rendering
-      processAndEnhanceSVG();
-      
-      // Clear any previous errors
+      // Process the SVG to ensure it's responsive
+      const processedSvg = svg.replace(/<svg /, '<svg style="width: 100%; height: 100%; max-height: 100%;" ');
+      setSvgContent(processedSvg);
       setError(null);
-    } catch (error) {
-      console.error('Failed to render mermaid diagram:', error);
-      
-      // Set error state
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setError(errorMessage);
-      
-      // Display error message in container
-      if (containerRef.current) {
-        const helpfulMessage = errorMessage.includes('Diagram type not specified') ?
-          'Make sure your diagram starts with a diagram type like "flowchart TD" or "sequenceDiagram"' :
-          'Please check your syntax. Common issues include missing connections or invalid syntax.';
-        
-        containerRef.current.innerHTML = `
-          <div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded text-red-700 dark:text-red-300">
-            <h3 class="font-bold mb-2">Diagram Error</h3>
-            <p class="mb-2">${errorMessage}</p>
-            <p class="text-sm">${helpfulMessage}</p>
-            <p class="text-xs mt-3">Example: flowchart TD\nA[Start] --> B[End]</p>
-          </div>
-        `;
-      }
+    } catch (err) {
+      console.error('Failed to render diagram:', err);
+      setError('Failed to render diagram');
+    } finally {
+      setIsLoading(false);
     }
-  };
-  
-  // Add a resize observer to make the diagram responsive
+  }, [code]);
+
+  // Initialize Mermaid with theme
   useEffect(() => {
-    let resizeObserver: ResizeObserver | null = null;
-    
-    if (containerRef.current) {
-      // Create a resize observer to handle container size changes
-      resizeObserver = new ResizeObserver(() => {
-        renderDiagram();
-      });
-      
-      resizeObserver.observe(containerRef.current);
+    const isDark = theme === 'dark' || 
+      (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: mermaidTheme || (isDark ? 'dark' : 'default'),
+      fontFamily: 'var(--font-geist-sans)',
+      themeVariables: mermaidTheme === 'base' ? {
+        background: '#FAFAFF',
+        mainBkg: '#FAFAFF',
+        nodeBorder: '#273469',
+        nodeBkg: '#FAFAFF',
+        primaryTextColor: '#1B264F',
+        secondaryTextColor: '#576490',
+        lineColor: '#273469',
+        arrowheadColor: '#273469',
+        clusterBkg: '#E4D9FF',
+        clusterBorder: '#273469',
+        edgeLabelBackground: '#E4D9FF',
+        nodeTextColor: '#1B264F',
+        titleColor: '#1B264F',
+        edgeColor: '#273469',
+        labelTextColor: '#576490',
+        labelBoxBkgColor: '#E4D9FF',
+        labelBoxBorderColor: '#273469',
+        fillColor: '#FAFAFF',
+        tertiaryColor: '#FAFAFF'
+      } : {},
+      securityLevel: 'loose',
+    });
+  }, [theme, mermaidTheme]);
+
+  // Render diagram when code changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      renderDiagram();
+    }, 100); // Small delay to prevent rapid re-renders
+
+    return () => clearTimeout(timeoutId);
+  }, [renderDiagram]);
+
+  // Pan functionality
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 0) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX, y: e.clientY });
     }
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      setPosition(prev => ({
+        x: prev.x + dx,
+        y: prev.y + dy
+      }));
+      setDragStart({ x: e.clientX, y: e.clientY });
+    }
+  }, [isDragging, dragStart]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Zoom functionality
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    const delta = -e.deltaY * 0.001;
+    setScale(prevScale => Math.min(Math.max(prevScale + delta, 0.1), 3));
+  }, []);
+
+  // Handle zoom and pan events
+  useEffect(() => {
+    const element = containerRef.current;
+    if (element) {
+      element.addEventListener('wheel', handleWheel, { passive: false });
+    }
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
     
     return () => {
-      if (resizeObserver) {
-        resizeObserver.disconnect();
+      if (element) {
+        element.removeEventListener('wheel', handleWheel);
       }
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, []);
-  
-  // Listen for window resize events for additional responsiveness
-  useEffect(() => {
-    const handleResize = () => {
-      if (containerRef.current) {
-        processAndEnhanceSVG();
-      }
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-  
-  // Initial render and re-render when dependencies change
-  useEffect(() => {
-    renderDiagram();
-  }, [chart, theme]);
+  }, [handleWheel, handleMouseMove, handleMouseUp]);
+
+  const handleResetZoom = () => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  };
 
   return (
-    <div className={`${className} w-full h-full overflow-hidden relative`}>
-      {/* Dotted grid background */}
+    <div className={`${className} relative w-full h-full overflow-hidden bg-white dark:bg-[#1B264F]`}>
+      {/* Loading state */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-delft-blue/50 backdrop-blur-sm z-20">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-delft-blue dark:text-periwinkle" />
+            <span className="text-sm text-delft-blue dark:text-periwinkle">
+              Rendering diagram...
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center z-20">
+          <div className="text-red-500 dark:text-red-400">
+            {error}
+          </div>
+        </div>
+      )}
+
+      {/* Diagram container */}
       <div 
-        className="absolute inset-0 z-0" 
-        style={{
-          backgroundImage: `radial-gradient(circle, ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'} 1px, transparent 1px)`,
-          backgroundSize: '20px 20px',
-          backgroundPosition: 'center center',
-          pointerEvents: 'none' // Allow clicking through the grid
+        ref={containerRef}
+        className="w-full h-full relative"
+        onMouseDown={handleMouseDown}
+        style={{ 
+          cursor: isDragging ? 'grabbing' : 'grab'
         }}
-      />
-      
-      {/* Diagram container with transparent background */}
-      <div 
-        ref={containerRef} 
-        className="w-full h-full flex justify-center items-center z-10 relative" 
-        style={{
-          padding: '16px',
-          overflow: 'hidden',
-          position: 'relative',
-          backgroundColor: 'transparent',
-          borderRadius: '8px',
-          width: '100%',
-          height: '100%',
-          transition: 'all 0.3s ease',
-        }}
-      />
+      >
+        {/* SVG container with transform */}
+        <div
+          ref={svgContainerRef}
+          className="absolute inset-0 flex items-center justify-center transition-all duration-200 ease-in-out"
+          style={{
+            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+            opacity: isLoading ? 0 : 1,
+          }}
+          dangerouslySetInnerHTML={{ __html: svgContent }}
+        />
+      </div>
+
+      {/* Zoom controls */}
+      <div className="absolute bottom-4 right-4 flex space-x-2 bg-white/90 dark:bg-delft-blue/90 p-1 rounded-lg shadow-lg z-30">
+        <button 
+          onClick={() => setScale(s => Math.max(s - 0.1, 0.1))}
+          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+          </svg>
+        </button>
+        <button 
+          onClick={handleResetZoom}
+          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+          </svg>
+        </button>
+        <button 
+          onClick={() => setScale(s => Math.min(s + 0.1, 3))}
+          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+        <span className="px-2 flex items-center text-sm font-medium">
+          {Math.round(scale * 100)}%
+        </span>
+      </div>
     </div>
   );
 }
+
+export default MermaidDiagram;
